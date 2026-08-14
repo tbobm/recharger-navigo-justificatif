@@ -32,9 +32,11 @@ accounts for this.)
 
 ## Setup
 
+Requires Google Chrome installed (this drives it directly via Playwright's
+`channel="chrome"` — no separate browser download needed).
+
 ```sh
 uv sync
-uv run playwright install chromium
 uv run pre-commit install  # optional, for contributing
 mkdir -p ~/.navigo-justificatif
 cp config.example.toml ~/.navigo-justificatif/config.toml
