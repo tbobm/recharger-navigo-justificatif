@@ -25,6 +25,7 @@ browser to Cloudflare.
 ```sh
 uv sync
 uv run playwright install chromium
+uv run pre-commit install  # optional, for contributing
 mkdir -p ~/.navigo-justificatif
 cp config.example.toml ~/.navigo-justificatif/config.toml
 ```

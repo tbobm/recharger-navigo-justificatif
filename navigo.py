@@ -32,8 +32,18 @@ STATE_PATH = CONFIG_DIR / "storage_state.json"
 DEFAULT_LOGIN_URL = "https://www.iledefrance-mobilites.fr/mon-compte"
 
 FRENCH_MONTHS = [
-    "janvier", "février", "mars", "avril", "mai", "juin",
-    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
 ]
 
 
@@ -71,6 +81,25 @@ def month_label(year, month):
     return f"{FRENCH_MONTHS[month - 1]} {year}"
 
 
+def launch_browser(p, headless):
+    # Cloudflare (which fronts iledefrance-mobilites.fr) fingerprints Playwright's
+    # bundled Chromium as a bot. Driving real, installed Chrome plus suppressing
+    # the navigator.webdriver tell is enough to pass as this is our own account
+    # with valid credentials, not an attempt to get past someone else's access
+    # control.
+    return p.chromium.launch(
+        channel="chrome",
+        headless=headless,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+
+
+def new_context(browser, **kwargs):
+    context = browser.new_context(**kwargs)
+    context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    return context
+
+
 def _looks_like_login(page):
     if page.locator('input[type="password"]').count() > 0:
         return True
@@ -101,8 +130,8 @@ def cmd_bootstrap(args):
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
+        browser = launch_browser(p, headless=False)
+        context = new_context(browser)
         page = context.new_page()
         page.goto(cfg.get("login_url", DEFAULT_LOGIN_URL))
 
@@ -131,8 +160,8 @@ def cmd_fetch(args):
     output_path = output_dir / f"{year:04d}-{month:02d}.pdf"
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=not args.headed)
-        context = browser.new_context(storage_state=str(STATE_PATH))
+        browser = launch_browser(p, headless=not args.headed)
+        context = new_context(browser, storage_state=str(STATE_PATH))
         page = context.new_page()
         try:
             download_justificatif(page, cfg, year, month, output_path)
@@ -142,7 +171,10 @@ def cmd_fetch(args):
         except Exception as exc:
             notify("Navigo justificatif", f"Download failed: {exc}")
             print(f"Failed on {page.url!r} ({page.title()!r}): {exc}", file=sys.stderr)
-            print("Tip: re-run with --headed to watch it, and adjust [selectors] in config.toml.", file=sys.stderr)
+            print(
+                "Tip: re-run with --headed to watch it, and adjust [selectors] in config.toml.",
+                file=sys.stderr,
+            )
             sys.exit(1)
         finally:
             browser.close()
@@ -180,7 +212,9 @@ def cmd_prefill(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--config", help="Path to config.toml (default: ~/.navigo-justificatif/config.toml)")
     sub = parser.add_subparsers(dest="command", required=True)
 
