@@ -1,0 +1,8 @@
+[project]
+name = "navigo-justificatif"
+version = "0.1.0"
+description = "Download your monthly Île-de-France Mobilités (Navigo) justificatif and optionally prefill an HR reimbursement form."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = ["playwright>=1.45"]

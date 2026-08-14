@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Example launchd job: runs `fetch` then `prefill` on the 15th of every
+  month at 09:00, so the justificatif is ready well before most HR
+  deadlines (commonly the 20th).
+
+  Install (adjust the two REPO_PATH occurrences first):
+    cp launchd/com.example.navigo-justificatif.plist \
+       ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
+    launchctl load ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
+
+  Trigger it once by hand to test:
+    launchctl start com.example.navigo-justificatif
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.navigo-justificatif</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>cd REPO_PATH && uv run python navigo.py fetch && uv run python navigo.py prefill</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Day</key>
+        <integer>15</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/navigo-justificatif.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/navigo-justificatif.log</string>
+</dict>
+</plist>

@@ -1,0 +1,7 @@
+config.toml
+storage_state.json
+*.pdf
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
