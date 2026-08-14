@@ -8,16 +8,11 @@ output_dir = "~/Navigo-justificatifs"
 # Page opened during `bootstrap` for you to log in.
 login_url = "https://www.iledefrance-mobilites.fr/mon-compte"
 
-# The page listing your justificatifs/attestations, once logged in.
-# Log in manually once, go to "Mon compte" > your purchases/Navigo pass, and
-# copy that URL here.
-justificatif_page_url = "https://www.iledefrance-mobilites.fr/CHANGE_ME"
-
-# Optional: only needed if `navigo.py fetch` can't find the download link on
-# its own. Run `navigo.py fetch --headed --month YYYY-MM` once to see the
-# actual page and adjust this.
-[selectors]
-download_link_text = "Télécharger"
+# The "Obtenir mon attestation de forfait" page for your Navigo contract,
+# e.g. https://www.jegeremacartenavigo.iledefrance-mobilites.fr/attestation/<your_contract_id>
+# Log in manually once, go to "Mon espace" > "Mon Navigo" > your contract >
+# "Obtenir mon attestation de forfait", and copy that URL here.
+justificatif_page_url = "https://www.jegeremacartenavigo.iledefrance-mobilites.fr/attestation/CHANGE_ME"
 
 # Optional: prefill an HR reimbursement form (e.g. a Google Form) after
 # download. Leave this whole section out to skip `navigo.py prefill`.

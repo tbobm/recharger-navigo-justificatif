@@ -4,14 +4,15 @@ optionally prefill an HR reimbursement form with it.
 
 Three commands:
   bootstrap  one-time interactive login, saves your session
-  fetch      headless: download one month's justificatif PDF
+  fetch      download one month's justificatif PDF (opens a visible browser
+             window briefly — Cloudflare blocks headless Chrome on this site)
   prefill    open an HR form prefilled, so you can attach the PDF and submit
 
-Credit: the "save a session once, reuse it headlessly" idea and the
-single-month download shape follow github.com/Scout22/Navigogo (2022),
-adapted here for the current site and driven through a real browser session
-(Playwright) instead of a raw cookie, since the site now sits behind
-Cloudflare bot protection.
+Credit: the "save a session once, reuse it" idea and the single-month
+download shape follow github.com/Scout22/Navigogo (2022), adapted here for
+the current site and driven through a real browser session (Playwright)
+instead of a raw cookie, since the site now sits behind Cloudflare bot
+protection.
 """
 
 import argparse
@@ -22,7 +23,7 @@ import tomllib
 import webbrowser
 from datetime import date
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 
 from playwright.sync_api import sync_playwright
 
@@ -81,20 +82,25 @@ def month_label(year, month):
     return f"{FRENCH_MONTHS[month - 1]} {year}"
 
 
-def launch_browser(p, headless):
+def launch_browser(p):
     # Cloudflare (which fronts iledefrance-mobilites.fr) fingerprints Playwright's
     # bundled Chromium as a bot. Driving real, installed Chrome plus suppressing
     # the navigator.webdriver tell is enough to pass as this is our own account
     # with valid credentials, not an attempt to get past someone else's access
-    # control.
+    # control. Headless Chrome still gets blocked even with this hardening, so
+    # this always launches a real, visible window — a brief popup once a month
+    # is an acceptable trade-off for a personal script.
     return p.chromium.launch(
         channel="chrome",
-        headless=headless,
-        args=["--disable-blink-features=AutomationControlled"],
+        headless=False,
+        args=["--disable-blink-features=AutomationControlled", "--start-maximized"],
     )
 
 
 def new_context(browser, **kwargs):
+    # Without no_viewport, Playwright pins the page to a fixed viewport (1280x720)
+    # regardless of the real window size, leaving the rest of the window blank.
+    kwargs.setdefault("no_viewport", True)
     context = browser.new_context(**kwargs)
     context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return context
@@ -107,22 +113,42 @@ def _looks_like_login(page):
     return any(word in url for word in ("connexion", "login", "auth"))
 
 
-def download_justificatif(page, cfg, year, month, output_path):
+def download_justificatif(context, page, cfg, year, month, output_path):
+    # The "attestation" form (same Symfony app Navigogo targeted in 2022, now
+    # under iledefrance-mobilites.fr) exposes its CSRF token as a plain hidden
+    # input and posts x-www-form-urlencoded to a fixed relative action. No
+    # need to touch the datepicker widget or click anything — just replay the
+    # POST with our own month/year, riding on the already-authenticated,
+    # Cloudflare-cleared browser session's cookies.
     page.goto(cfg["justificatif_page_url"])
     if _looks_like_login(page):
         raise AuthExpired(page.url)
 
-    download_text = cfg.get("selectors", {}).get("download_link_text", "Télécharger")
-    label = month_label(year, month)
+    form = page.locator('form[name="attestation"]')
+    token = form.locator('input[name="attestation[_token]"]').input_value()
+    action_url = urljoin(page.url, form.get_attribute("action"))
 
-    row = page.get_by_text(label, exact=False).first
-    row.wait_for(timeout=10_000)
-    container = row.locator("xpath=ancestor::*[self::li or self::tr or self::div][1]")
-    link = container.get_by_text(download_text, exact=False).first
+    # The site's moisDebut/moisFin are 0-indexed (JS Date.getMonth() style:
+    # 0=January..11=December), confirmed by its own default value being "7"
+    # while the page was loaded in August. Our `month` argument is 1-indexed.
+    month_0indexed = str(month - 1)
 
-    with page.expect_download() as dl_info:
-        link.click()
-    dl_info.value.save_as(output_path)
+    response = context.request.post(
+        action_url,
+        headers={"Referer": page.url},
+        form={
+            "attestation[type]": "monthly",
+            "attestation[moisDebut]": month_0indexed,
+            "attestation[moisFin]": month_0indexed,
+            "attestation[anneeDebut]": str(year),
+            "attestation[anneeFin]": str(year),
+            "attestation[_token]": token,
+        },
+    )
+    body = response.body()
+    if not response.ok or not body.startswith(b"%PDF"):
+        raise ValueError(f"Unexpected response (status {response.status}), first bytes: {body[:80]!r}")
+    output_path.write_bytes(body)
 
 
 def cmd_bootstrap(args):
@@ -130,7 +156,7 @@ def cmd_bootstrap(args):
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
-        browser = launch_browser(p, headless=False)
+        browser = launch_browser(p)
         context = new_context(browser)
         page = context.new_page()
         page.goto(cfg.get("login_url", DEFAULT_LOGIN_URL))
@@ -160,27 +186,20 @@ def cmd_fetch(args):
     output_path = output_dir / f"{year:04d}-{month:02d}.pdf"
 
     with sync_playwright() as p:
-        browser = launch_browser(p, headless=not args.headed)
+        browser = launch_browser(p)
         context = new_context(browser, storage_state=str(STATE_PATH))
         page = context.new_page()
         try:
-            download_justificatif(page, cfg, year, month, output_path)
+            download_justificatif(context, page, cfg, year, month, output_path)
         except AuthExpired:
             notify("Navigo justificatif", "Session expired — run `navigo.py bootstrap` again.")
             sys.exit("Session expired. Run `navigo.py bootstrap` again.")
         except Exception as exc:
             notify("Navigo justificatif", f"Download failed: {exc}")
             print(f"Failed on {page.url!r} ({page.title()!r}): {exc}", file=sys.stderr)
-            print(
-                "Tip: re-run with --headed to watch it, and adjust [selectors] in config.toml.",
-                file=sys.stderr,
-            )
             sys.exit(1)
         finally:
             browser.close()
-
-    if not output_path.read_bytes().startswith(b"%PDF"):
-        sys.exit(f"Downloaded file doesn't look like a PDF: {output_path}")
 
     notify("Navigo justificatif", f"Downloaded {output_path.name}")
     print(f"Saved {output_path}")
@@ -222,7 +241,6 @@ def main():
 
     p_fetch = sub.add_parser("fetch", help="Download one month's justificatif PDF.")
     p_fetch.add_argument("--month", help="YYYY-MM, defaults to the current month.")
-    p_fetch.add_argument("--headed", action="store_true", help="Show the browser (for debugging selectors).")
 
     p_prefill = sub.add_parser("prefill", help="Open the HR form prefilled and reveal the PDF.")
     p_prefill.add_argument("--month", help="YYYY-MM, defaults to the current month.")

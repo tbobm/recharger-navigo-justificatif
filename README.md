@@ -6,19 +6,29 @@ left is to attach the PDF and hit submit.
 
 No Navigo/IDFM API exists for personal purchase receipts, so this drives a
 real (Playwright) browser: log in once by hand, then reuse that session
-headlessly every month.
+every month.
 
-## Why a browser, not a plain HTTP request?
+## Why a browser at all?
 
 An earlier project, [Navigogo](https://github.com/Scout22/Navigogo) (2022),
 did this with a raw `requests` session and a long-lived cookie — no browser
-at all. That's the leaner approach and the inspiration for the
-bootstrap-once/run-headless shape here, but its endpoint
-(`jegeremacartenavigo.fr`) is dead, and the current
-`iledefrance-mobilites.fr` sits behind Cloudflare bot protection that a bare
-HTTP client can't pass. Playwright's `storage_state` gives the same
-"authenticate once, replay headlessly" model while still looking like a real
-browser to Cloudflare.
+at all. Its endpoint (`jegeremacartenavigo.fr`) is dead, but the same
+Symfony app now lives at `jegeremacartenavigo.iledefrance-mobilites.fr`
+behind Cloudflare, which a bare HTTP client can't get past. So this tool
+uses Playwright just to establish and hold that authenticated session
+(`storage_state`, replayed on every run). Once on the "attestation" page, the
+actual download replays Navigogo's original technique almost exactly: read
+the CSRF token out of the page's hidden `attestation[_token]` input, then
+POST the desired month/year straight to `/attestation/attestation.pdf`
+through Playwright's request API (which shares the browser session's
+cookies) — no clicking, no datepicker interaction.
+
+**Why not headless?** Cloudflare reliably blocks headless Chrome on this
+site, even with the anti-fingerprint hardening below. `fetch` always opens a
+real, visible Chrome window — a brief popup once a month is a fine trade-off
+for a personal script. (One quirk found the hard way: the site's month
+fields are 0-indexed, JS `Date.getMonth()` style — `navigo.py` already
+accounts for this.)
 
 ## Setup
 
@@ -31,8 +41,10 @@ cp config.example.toml ~/.navigo-justificatif/config.toml
 ```
 
 Edit `~/.navigo-justificatif/config.toml`:
-- `justificatif_page_url`: log into your IDFM account manually once, go to
-  where your purchases/attestations are listed, and paste that URL.
+- `justificatif_page_url`: log into your IDFM account, go to "Mon espace" >
+  "Mon Navigo" > your contract > "Obtenir mon attestation de forfait", and
+  paste that URL (looks like
+  `https://www.jegeremacartenavigo.iledefrance-mobilites.fr/attestation/<id>`).
 - `[hr_form]`: optional. Delete the whole section if you don't want the
   `prefill` step.
 
@@ -46,14 +58,10 @@ personal ever goes into this repo (`.gitignore` covers all of it).
 # One-time: opens a real browser window, you log in, press Enter when done.
 uv run python navigo.py bootstrap
 
-# Monthly: headless download of the current month's justificatif.
+# Monthly: downloads the current month's justificatif (briefly opens Chrome).
 uv run python navigo.py fetch
 # or a specific month:
 uv run python navigo.py fetch --month 2026-08
-
-# If the download link isn't found, watch it happen and tune [selectors]
-# in config.toml:
-uv run python navigo.py fetch --headed --month 2026-08
 
 # Optional: open the HR form prefilled, reveal the PDF in Finder, then you
 # attach it and submit by hand (Google Forms blocks scripted file uploads
