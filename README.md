@@ -1,8 +1,8 @@
 # navigo-justificatif
 
 Download your monthly Île-de-France Mobilités (Navigo) justificatif d'achat
-automatically, and optionally prefill an HR reimbursement form so all that's
-left is to attach the PDF and hit submit.
+automatically, and optionally get it renamed and staged for your HR
+reimbursement form so all that's left is to attach it and hit submit.
 
 No Navigo/IDFM API exists for personal purchase receipts, so this drives a
 real (Playwright) browser: log in once by hand, then reuse that session
@@ -47,8 +47,9 @@ Edit `~/.navigo-justificatif/config.toml`:
   "Mon Navigo" > your contract > "Obtenir mon attestation de forfait", and
   paste that URL (looks like
   `https://www.jegeremacartenavigo.iledefrance-mobilites.fr/attestation/<id>`).
-- `[hr_form]`: optional. Delete the whole section if you don't want the
-  `prefill` step.
+- `[hr_form]`: optional, only makes sense if your HR form's only real input
+  is a file upload with a naming convention (see `config.example.toml`).
+  Delete the whole section if you don't want the `prefill` step.
 
 This config file, your session, and any downloaded PDF all live under
 `~/.navigo-justificatif/` and a configurable output folder — nothing
@@ -65,9 +66,10 @@ uv run python navigo.py fetch
 # or a specific month:
 uv run python navigo.py fetch --month 2026-08
 
-# Optional: open the HR form prefilled, reveal the PDF in Finder, then you
-# attach it and submit by hand (Google Forms blocks scripted file uploads
-# and forces sign-in on submit, so this last step stays manual on purpose).
+# Optional: rename a copy of the PDF to the HR form's required convention,
+# open the form, reveal the renamed file in Finder, then you attach it and
+# submit by hand (the form has no text fields to prefill, and a human
+# should eyeball the reimbursement request before submitting anyway).
 uv run python navigo.py prefill
 ```
 
@@ -84,9 +86,9 @@ that file for install steps.
 
 - Only ever fetches **one month at a time** (matches how the site presents
   justificatifs, and how you'd submit them).
-- The HR form's file attachment and final submit are **manual** — Google
-  Forms doesn't allow scripted uploads without a fragile logged-in-Google
-  automation, and a human should eyeball the reimbursement request anyway.
+- The HR form's file attachment and final submit are **manual** — the form
+  has no fields to script beyond the file itself, and a human should
+  eyeball the reimbursement request before submitting anyway.
 - No retry queue: a failed run notifies you and you re-run it by hand.
 
 ## License

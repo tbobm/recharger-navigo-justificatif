@@ -14,19 +14,13 @@ login_url = "https://www.iledefrance-mobilites.fr/mon-compte"
 # "Obtenir mon attestation de forfait", and copy that URL here.
 justificatif_page_url = "https://www.jegeremacartenavigo.iledefrance-mobilites.fr/attestation/CHANGE_ME"
 
-# Optional: prefill an HR reimbursement form (e.g. a Google Form) after
-# download. Leave this whole section out to skip `navigo.py prefill`.
+# Optional: after `fetch`, `navigo.py prefill` renames a copy of the PDF to
+# match your HR form's required naming convention (commonly
+# MM_YY_SURNAME_MENSUEL.pdf), opens the form, and reveals that file in
+# Finder for you to attach and submit. Leave this whole section out to skip
+# `navigo.py prefill` entirely. This assumes a form whose only real input is
+# a file upload (no text fields to prefill) — if yours has actual form
+# fields, prefill those yourself via the form's own "Get pre-filled link".
 [hr_form]
-# Base form URL (without query string). For Google Forms, use the plain
-# ".../viewform" URL — see the form's own "Get pre-filled link" feature to
-# discover the entry.<id> for each field below.
 base_url = "https://docs.google.com/forms/d/e/FORM_ID/viewform"
-amount = "38.55"
-name = "Jane Doe"
-
-[hr_form.fields]
-# Map each entry.<id> to a value. "{month}", "{amount}", "{name}" are
-# substituted from the values above.
-# "entry.111111111" = "{name}"
-# "entry.222222222" = "{month}"
-# "entry.333333333" = "{amount}"
+surname = "MASSARD"

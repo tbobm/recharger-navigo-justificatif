@@ -6,7 +6,8 @@ Three commands:
   bootstrap  one-time interactive login, saves your session
   fetch      download one month's justificatif PDF (opens a visible browser
              window briefly — Cloudflare blocks headless Chrome on this site)
-  prefill    open an HR form prefilled, so you can attach the PDF and submit
+  prefill    rename the PDF per the HR form's naming convention, open the
+             form and reveal the file, so you can attach it and submit
 
 Credit: the "save a session once, reuse it" idea and the single-month
 download shape follow github.com/Scout22/Navigogo (2022), adapted here for
@@ -23,7 +24,7 @@ import tomllib
 import webbrowser
 from datetime import date
 from pathlib import Path
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urljoin
 
 from playwright.sync_api import sync_playwright
 
@@ -31,21 +32,6 @@ CONFIG_DIR = Path.home() / ".navigo-justificatif"
 DEFAULT_CONFIG_PATH = CONFIG_DIR / "config.toml"
 STATE_PATH = CONFIG_DIR / "storage_state.json"
 DEFAULT_LOGIN_URL = "https://www.iledefrance-mobilites.fr/mon-compte"
-
-FRENCH_MONTHS = [
-    "janvier",
-    "février",
-    "mars",
-    "avril",
-    "mai",
-    "juin",
-    "juillet",
-    "août",
-    "septembre",
-    "octobre",
-    "novembre",
-    "décembre",
-]
 
 
 class AuthExpired(Exception):
@@ -76,10 +62,6 @@ def parse_month(text):
 def current_month():
     today = date.today()
     return today.year, today.month
-
-
-def month_label(year, month):
-    return f"{FRENCH_MONTHS[month - 1]} {year}"
 
 
 def launch_browser(p):
@@ -214,20 +196,21 @@ def cmd_prefill(args):
     year, month = parse_month(args.month) if args.month else current_month()
     output_dir = Path(cfg.get("output_dir", "~/Navigo-justificatifs")).expanduser()
     pdf_path = output_dir / f"{year:04d}-{month:02d}.pdf"
+    if not pdf_path.exists():
+        sys.exit(f"No downloaded PDF for {year:04d}-{month:02d}. Run `navigo.py fetch` first.")
 
-    values = {
-        "month": month_label(year, month).capitalize(),
-        "amount": hr_form.get("amount", ""),
-        "name": hr_form.get("name", ""),
-    }
-    params = {key: str(value).format(**values) for key, value in hr_form.get("fields", {}).items()}
-    url = f"{hr_form['base_url']}?{urlencode(params)}&usp=pp_url"
+    # The HR form has no text fields to prefill via URL — just a single
+    # required file upload, with a strict naming convention it asks for
+    # (MOIS_ANNEE_NOM_MENSUEL.pdf). Get that part right automatically and
+    # hand off the actual attach + submit, which needs a human anyway.
+    renamed_path = output_dir / f"{month:02d}_{year % 100:02d}_{hr_form['surname'].upper()}_MENSUEL.pdf"
+    renamed_path.write_bytes(pdf_path.read_bytes())
 
-    webbrowser.open(url)
-    if pdf_path.exists() and sys.platform == "darwin":
-        subprocess.run(["open", "-R", str(pdf_path)], check=False)
+    webbrowser.open(hr_form["base_url"])
+    if sys.platform == "darwin":
+        subprocess.run(["open", "-R", str(renamed_path)], check=False)
 
-    print(f"Opened prefilled form. Attach {pdf_path} and submit manually.")
+    print(f"Opened the HR form. Attach {renamed_path} and submit manually.")
 
 
 def main():
