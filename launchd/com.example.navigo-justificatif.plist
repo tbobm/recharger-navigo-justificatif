@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Example launchd job: runs `fetch` then `prefill` on the 15th of every
+  Example launchd job: runs `fetch` then `prefill` on the 10th of every
   month at 09:00, so the justificatif is ready well before most HR
   deadlines (commonly the 20th).
 
-  Install (adjust the two REPO_PATH occurrences first):
+  Install (adjust REPO_PATH first; if you don't use mise, replace the
+  ~/.local/share/mise/shims/uv paths below with `which uv`'s output):
     cp launchd/com.example.navigo-justificatif.plist \
        ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
     launchctl load ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
 
   Trigger it once by hand to test:
     launchctl start com.example.navigo-justificatif
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
+    rm ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
 -->
 <plist version="1.0">
 <dict>
@@ -22,13 +27,17 @@
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>cd REPO_PATH && uv run python navigo.py fetch && uv run python navigo.py prefill</string>
+        <!-- launchd doesn't source your shell profile, so `uv` on bare PATH
+             won't resolve. This shim path is mise's stable symlink, which
+             survives `uv` version upgrades (unlike the versioned path
+             `which uv` reports in an interactive shell). -->
+        <string>cd REPO_PATH &amp;&amp; ~/.local/share/mise/shims/uv run python navigo.py fetch &amp;&amp; ~/.local/share/mise/shims/uv run python navigo.py prefill</string>
     </array>
 
     <key>StartCalendarInterval</key>
     <dict>
         <key>Day</key>
-        <integer>15</integer>
+        <integer>10</integer>
         <key>Hour</key>
         <integer>9</integer>
         <key>Minute</key>

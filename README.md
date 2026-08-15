@@ -79,8 +79,9 @@ re-run `bootstrap` — a scheduled job should never fail silently.
 ## Scheduling on macOS
 
 An example `launchd` job is in [`launchd/`](launchd/com.example.navigo-justificatif.plist),
-running `fetch` then `prefill` on the 15th of each month. See the comments in
-that file for install steps.
+running `fetch` then `prefill` on the 10th of each month, before most HR
+deadlines. See the comments in that file for install steps — note it pins
+`uv`'s path since launchd jobs don't inherit your shell's PATH/profile.
 
 ## Scope, on purpose
 
