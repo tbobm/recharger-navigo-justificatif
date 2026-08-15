@@ -5,23 +5,27 @@
   month at 09:00, so the justificatif is ready well before most HR
   deadlines (commonly the 20th).
 
+  The label "dev.tbobm.navigo-justificatif" is a reverse-DNS identifier —
+  if you fork this, rename the file and the Label below to your own
+  domain/handle instead (e.g. "dev.yourname.navigo-justificatif").
+
   Install (adjust REPO_PATH first; if you don't use mise, replace the
   ~/.local/share/mise/shims/uv paths below with `which uv`'s output):
-    cp launchd/com.example.navigo-justificatif.plist \
-       ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
-    launchctl load ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
+    cp launchd/dev.tbobm.navigo-justificatif.plist \
+       ~/Library/LaunchAgents/dev.tbobm.navigo-justificatif.plist
+    launchctl load ~/Library/LaunchAgents/dev.tbobm.navigo-justificatif.plist
 
   Trigger it once by hand to test:
-    launchctl start com.example.navigo-justificatif
+    launchctl start dev.tbobm.navigo-justificatif
 
   Uninstall:
-    launchctl unload ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
-    rm ~/Library/LaunchAgents/com.example.navigo-justificatif.plist
+    launchctl unload ~/Library/LaunchAgents/dev.tbobm.navigo-justificatif.plist
+    rm ~/Library/LaunchAgents/dev.tbobm.navigo-justificatif.plist
 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.example.navigo-justificatif</string>
+    <string>dev.tbobm.navigo-justificatif</string>
 
     <key>ProgramArguments</key>
     <array>

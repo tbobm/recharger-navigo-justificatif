@@ -78,10 +78,43 @@ re-run `bootstrap` — a scheduled job should never fail silently.
 
 ## Scheduling on macOS
 
-An example `launchd` job is in [`launchd/`](launchd/com.example.navigo-justificatif.plist),
-running `fetch` then `prefill` on the 10th of each month, before most HR
-deadlines. See the comments in that file for install steps — note it pins
-`uv`'s path since launchd jobs don't inherit your shell's PATH/profile.
+A `launchd` job in [`launchd/dev.tbobm.navigo-justificatif.plist`](launchd/dev.tbobm.navigo-justificatif.plist)
+runs `fetch` then `prefill` on the 10th of each month at 09:00 — before most
+HR deadlines, and popping a visible Chrome window briefly (Cloudflare
+blocks headless Chrome here, as noted above).
+
+"dev.tbobm.navigo-justificatif" is a reverse-DNS identifier tied to this
+repo's author; rename the file and its `Label` to your own domain/handle
+first if you're setting this up for yourself, e.g.
+`dev.yourname.navigo-justificatif`.
+
+Install:
+
+```sh
+# 1. Rename the file/Label first if you haven't (see above), then:
+REPO_PATH=$(pwd)
+PLIST=launchd/dev.tbobm.navigo-justificatif.plist   # your renamed copy, if any
+
+sed "s|REPO_PATH|$REPO_PATH|g" "$PLIST" > ~/Library/LaunchAgents/$(basename "$PLIST")
+launchctl load ~/Library/LaunchAgents/$(basename "$PLIST")
+```
+
+Verify it's registered, and optionally trigger it once by hand to confirm
+it actually works through launchd's own (minimal) environment rather than
+just your shell:
+
+```sh
+launchctl list | grep navigo-justificatif
+launchctl start dev.tbobm.navigo-justificatif   # use your own Label if renamed
+tail -f /tmp/navigo-justificatif.log
+```
+
+Uninstall:
+
+```sh
+launchctl unload ~/Library/LaunchAgents/dev.tbobm.navigo-justificatif.plist
+rm ~/Library/LaunchAgents/dev.tbobm.navigo-justificatif.plist
+```
 
 ## Scope, on purpose
 
