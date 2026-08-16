@@ -4,40 +4,16 @@ Download your monthly Île-de-France Mobilités (Navigo) justificatif d'achat
 automatically, and optionally get it renamed and staged for your HR
 reimbursement form so all that's left is to attach it and hit submit.
 
-No Navigo/IDFM API exists for personal purchase receipts, so this drives a
-real (Playwright) browser: log in once by hand, then reuse that session
-every month.
-
-## Why a browser at all?
-
-An earlier project, [Navigogo](https://github.com/Scout22/Navigogo) (2022),
-did this with a raw `requests` session and a long-lived cookie — no browser
-at all. Its endpoint (`jegeremacartenavigo.fr`) is dead, but the same
-Symfony app now lives at `jegeremacartenavigo.iledefrance-mobilites.fr`
-behind Cloudflare, which a bare HTTP client can't get past. So this tool
-uses Playwright just to establish and hold that authenticated session
-(`storage_state`, replayed on every run). Once on the "attestation" page, the
-actual download replays Navigogo's original technique almost exactly: read
-the CSRF token out of the page's hidden `attestation[_token]` input, then
-POST the desired month/year straight to `/attestation/attestation.pdf`
-through Playwright's request API (which shares the browser session's
-cookies) — no clicking, no datepicker interaction.
-
-**Why not headless?** Cloudflare reliably blocks headless Chrome on this
-site, even with the anti-fingerprint hardening below. `fetch` always opens a
-real, visible Chrome window — a brief popup once a month is a fine trade-off
-for a personal script. (One quirk found the hard way: the site's month
-fields are 0-indexed, JS `Date.getMonth()` style — `navigo.py` already
-accounts for this.)
+Drives a real Chrome browser via Playwright: log in once by hand, then reuse
+that session every month. `fetch` briefly opens a visible Chrome window each
+run (Cloudflare blocks headless Chrome on this site).
 
 ## Setup
 
-Requires Google Chrome installed (this drives it directly via Playwright's
-`channel="chrome"` — no separate browser download needed).
+Requires Google Chrome installed.
 
 ```sh
 uv sync
-uv run pre-commit install  # optional, for contributing
 mkdir -p ~/.navigo-justificatif
 cp config.example.toml ~/.navigo-justificatif/config.toml
 ```
@@ -45,86 +21,59 @@ cp config.example.toml ~/.navigo-justificatif/config.toml
 Edit `~/.navigo-justificatif/config.toml`:
 - `justificatif_page_url`: log into your IDFM account, go to "Mon espace" >
   "Mon Navigo" > your contract > "Obtenir mon attestation de forfait", and
-  paste that URL (looks like
-  `https://www.jegeremacartenavigo.iledefrance-mobilites.fr/attestation/<id>`).
-- `[hr_form]`: optional, only makes sense if your HR form's only real input
-  is a file upload with a naming convention (see `config.example.toml`).
-  Delete the whole section if you don't want the `prefill` step.
+  paste that URL.
+- `[hr_form]`: optional — delete it if you don't want the `prefill` step
+  (only useful if your HR form is a plain file upload; see the comments in
+  `config.example.toml`).
 
-This config file, your session, and any downloaded PDF all live under
-`~/.navigo-justificatif/` and a configurable output folder — nothing
-personal ever goes into this repo (`.gitignore` covers all of it).
+Everything personal (config, session, downloaded PDFs) lives under
+`~/.navigo-justificatif/` and a configurable output folder — never in this repo.
 
 ## Usage
 
 ```sh
-# One-time: opens a real browser window, you log in, press Enter when done.
-uv run python navigo.py bootstrap
-
-# Monthly: downloads the current month's justificatif (briefly opens Chrome).
-uv run python navigo.py fetch
-# or a specific month:
-uv run python navigo.py fetch --month 2026-08
-
-# Optional: rename a copy of the PDF to the HR form's required convention,
-# open the form, reveal the renamed file in Finder, then you attach it and
-# submit by hand (the form has no text fields to prefill, and a human
-# should eyeball the reimbursement request before submitting anyway).
-uv run python navigo.py prefill
+uv run python navigo.py bootstrap   # one-time: log in, press Enter when done
+uv run python navigo.py fetch       # monthly: download this month's justificatif
+uv run python navigo.py prefill     # optional: rename PDF, open the HR form, attach & submit by hand
 ```
 
-If your session expires, `fetch` fires a macOS notification telling you to
-re-run `bootstrap` — a scheduled job should never fail silently.
+Pass `--month YYYY-MM` to `fetch`/`prefill` for a specific month. If your
+session expires, `fetch` sends a macOS notification telling you to re-run
+`bootstrap` instead of failing silently.
 
 ## Scheduling on macOS
 
-A `launchd` job in [`launchd/dev.tbobm.navigo-justificatif.plist`](launchd/dev.tbobm.navigo-justificatif.plist)
-runs `fetch` then `prefill` on the 10th of each month at 09:00 — before most
-HR deadlines, and popping a visible Chrome window briefly (Cloudflare
-blocks headless Chrome here, as noted above).
-
-"dev.tbobm.navigo-justificatif" is a reverse-DNS identifier tied to this
-repo's author; rename the file and its `Label` to your own domain/handle
-first if you're setting this up for yourself, e.g.
-`dev.yourname.navigo-justificatif`.
-
-Install:
-
-```sh
-# 1. Rename the file/Label first if you haven't (see above), then:
-REPO_PATH=$(pwd)
-PLIST=launchd/dev.tbobm.navigo-justificatif.plist   # your renamed copy, if any
-
-sed "s|REPO_PATH|$REPO_PATH|g" "$PLIST" > ~/Library/LaunchAgents/$(basename "$PLIST")
-launchctl load ~/Library/LaunchAgents/$(basename "$PLIST")
-```
-
-Verify it's registered, and optionally trigger it once by hand to confirm
-it actually works through launchd's own (minimal) environment rather than
-just your shell:
-
-```sh
-launchctl list | grep navigo-justificatif
-launchctl start dev.tbobm.navigo-justificatif   # use your own Label if renamed
-tail -f /tmp/navigo-justificatif.log
-```
-
-Uninstall:
-
-```sh
-launchctl unload ~/Library/LaunchAgents/dev.tbobm.navigo-justificatif.plist
-rm ~/Library/LaunchAgents/dev.tbobm.navigo-justificatif.plist
-```
+See [`launchd/dev.tbobm.navigo-justificatif.plist`](launchd/dev.tbobm.navigo-justificatif.plist)
+for a ready-to-install job that runs `fetch` then `prefill` on the 10th of
+each month — install/verify/uninstall steps are in its header comment.
 
 ## Scope, on purpose
 
-- Only ever fetches **one month at a time** (matches how the site presents
-  justificatifs, and how you'd submit them).
+- Only ever fetches **one month at a time**.
 - The HR form's file attachment and final submit are **manual** — the form
-  has no fields to script beyond the file itself, and a human should
-  eyeball the reimbursement request before submitting anyway.
+  has no other fields, and a human should eyeball the request before submitting.
 - No retry queue: a failed run notifies you and you re-run it by hand.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+<details>
+<summary>Why a browser, and why not headless?</summary>
+
+No Navigo/IDFM API exists for personal purchase receipts. An earlier project,
+[Navigogo](https://github.com/Scout22/Navigogo) (2022), solved this with a raw
+`requests` session and a long-lived cookie — no browser at all. Its endpoint
+is dead, but the same app now lives behind Cloudflare, which a bare HTTP
+client can't get past. This tool uses Playwright to hold an authenticated
+session (`storage_state`), then replays Navigogo's original technique almost
+exactly: read the CSRF token out of the "attestation" page's hidden input,
+then POST the desired month/year straight to `/attestation/attestation.pdf`
+— no clicking, no datepicker interaction.
+
+Cloudflare reliably blocks headless Chrome on this site even with
+anti-fingerprint hardening, so `fetch` always opens a real, visible window —
+a brief popup once a month. (One quirk found the hard way: the site's month
+fields are 0-indexed, JS `Date.getMonth()` style.)
+
+</details>
